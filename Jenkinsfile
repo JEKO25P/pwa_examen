@@ -17,6 +17,8 @@ pipeline {
         VERCEL_ORG_ID = 'team_4ZNz0EjGg89V5lhLtw89Ekdq' // <-- REEMPLAZA ESTE VALOR
         VERCEL_PROJECT_ID = 'prj_ZRPTi5Hcrs8HSvs70jZEeVmfSRSr'
 
+        PATH = "${tool 'NodeJS_18'}/bin:$PATH"
+
     }
     
     stages {
@@ -34,16 +36,8 @@ pipeline {
 
         stage('Instalación de Dependencias') {
             steps {
-                script {
-            // Obtiene la ubicación de la herramienta de Node.js instalada (NodeJS_18)
-            def node_home = tool 'NodeJS_18'
-            
-            // Ejecuta npm install, asegurando que los binarios de Node estén en el PATH
-            sh """
-                export PATH="${node_home}/bin:\$PATH"
-                npm install
-            """
-            }
+                // Ya no necesitas 'script' ni 'tool' aquí. Solo el comando 'npm install'
+                sh 'npm install'
             }
         }
 

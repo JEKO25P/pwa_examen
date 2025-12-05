@@ -75,7 +75,7 @@ pipeline {
                     // Verificamos la rama dentro del script
                     if (env.BRANCH_NAME == 'develop') {
                         echo "Esperando el veredicto de SonarQube..."
-                        timeout(time: 5, unit: 'MINUTES') {
+                        timeout(time: 10, unit: 'MINUTES') {
                             def qg = waitForQualityGate()
                             if (qg.status != 'OK') {
                                 error "Pipeline falló: Quality Gate no superado. Veredicto: ${qg.status}"

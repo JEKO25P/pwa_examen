@@ -52,7 +52,7 @@ pipeline {
         // Etapas específicas de la rama 'develop'
         // ---------------------------------------------
         
-        stage('Análisis de Código Estático (SonarQube)') {
+       stage('Análisis de Código Estático (SonarQube)') {
     when { 
         branch 'develop' 
     }
@@ -61,7 +61,7 @@ pipeline {
             // Asegúrate de que 'SonarQube' coincide con el nombre del servidor en Jenkins
             withSonarQubeEnv('SonarQube') { 
                 sh """
-                    // Usamos el tool de SonarQubeScanner para encontrar el binario
+                    # Las variables de entorno ya están disponibles por el bloque withEnv
                     ${tool 'SonarQubeScanner'}/bin/sonar-scanner \
                     -Dsonar.projectKey=${env.SONARQUBE_PROJECT_KEY} \
                     -Dsonar.sources=.
@@ -71,13 +71,14 @@ pipeline {
     }
 }
 
-       stage('Quality Gate') {
+stage('Quality Gate') {
     when {
         branch 'develop'
     }
     steps {
         script {
             echo "Esperando el veredicto de SonarQube..."
+            // La función waitForQualityGate() no requiere un wrapper conSonarQubeEnv
             timeout(time: 5, unit: 'MINUTES') {
                 def qg = waitForQualityGate()
                 if (qg.status != 'OK') {
@@ -87,10 +88,13 @@ pipeline {
         }
     }
     post {
-                success {
-                    echo '🎉 Quality Gate superado con éxito.'
-                }
-            }
+        success {
+            echo '🎉 Quality Gate superado con éxito.'
+        }
+        failure {
+            echo '❌ Quality Gate falló.'
+        }
+    }
 }
         
         // El proceso en 'develop' debe terminar aquí si pasa el Quality Gate

@@ -1,40 +1,75 @@
 pipeline {
-    agent any
+  agent any
 
-    environment {
-        VERCEL_TOKEN = credentials('vercel-token')
-        VERCEL_ORG = "josias-kumuls-projects"
-        VERCEL_PROJECT = "examen-poke-pwa"
+  tools {
+    nodejs 'node18'            // Nombre configurado en Global Tool Configuration
+    sonarScanner 'SonarScanner'
+  }
+
+  environment {
+    // Token de Vercel guardado como credencial "vercel-token"
+    VERCEL_TOKEN = credentials('vercel-token')
+    SONAR_PROJECT_KEY = 'poke-pwa'
+  }
+
+  stages {
+
+    stage('Checkout') {
+      steps {
+        // Usa la rama que Jenkins ya haya chequeado (develop o main)
+        checkout scm
+      }
     }
 
-    stages {
-
-        stage('Checkout') {
-            steps {
-                git url: 'https://github.com/JEKO25P/pwa_examen.git', branch: 'develop'
-            }
-        }
-
-        stage('Install Node & Dependencies') {
-            steps {
-                bat 'node -v'
-                bat 'npm install'
-            }
-        }
-
-        stage('Build') {
-            steps {
-                bat 'npm run build'
-            }
-        }
-
-        stage('Deploy to Vercel') {
-            steps {
-                bat '''
-                    npm install -g vercel
-                    vercel --token=%VERCEL_TOKEN% --prod --yes
-                '''
-            }
-        }
+    stage('Install dependencies') {
+      steps {
+        sh 'node -v'
+        sh 'npm ci || npm install'
+      }
     }
+
+    stage('Build') {
+      steps {
+        sh 'npm run build'
+      }
+    }
+
+    stage('SonarQube Analysis') {
+      steps {
+        withSonarQubeEnv('sonarqube') {
+          sh """
+            sonar-scanner \
+              -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+              -Dsonar.sources=src \
+              -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info || echo "No coverage file, skipping"
+          """
+        }
+      }
+    }
+
+    stage('Quality Gate') {
+      steps {
+        timeout(time: 5, unit: 'MINUTES') {
+          script {
+            def qg = waitForQualityGate()
+            if (qg.status != 'OK') {
+              error "Quality Gate failed: ${qg.status}"
+            }
+          }
+        }
+      }
+    }
+
+    stage('Deploy to Vercel') {
+      when {
+        branch 'main'          // SOLO desplegar en main, como pide el examen
+      }
+      steps {
+        sh """
+          npm install vercel
+          npx vercel --prod --yes --token=${VERCEL_TOKEN}
+        """
+      }
+    }
+  }
 }

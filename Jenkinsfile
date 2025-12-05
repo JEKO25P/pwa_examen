@@ -1,19 +1,19 @@
 // Jenkinsfile Declarativo
 pipeline {
     
+    // Ejecuta el pipeline en cualquier agente disponible (el contenedor Jenkins)
     agent any
 
     environment {
-        // Variables de entorno para Node.js, SonarQube y Vercel
-
-        // **1. INYECCIÓN DE PATH DE NODE.JS:** Resuelve el problema de "npm not found"
-        // Inyecta el directorio 'bin' del tool de Node.js en el PATH global del pipeline.
+        // Variables de entorno globales del pipeline
+        
+        // 1. INYECCIÓN DE PATH DE NODE.JS: Soluciona el problema de 'npm not found' globalmente.
         PATH = "${tool 'NodeJS_18'}/bin:$PATH" 
 
-        // **2. SONARQUBE:** (Usaremos el tool directo en el paso sh)
+        // 2. SONARQUBE: Clave del proyecto.
         SONARQUBE_PROJECT_KEY = 'examen-poke-pwa' 
 
-        // **3. VERCEL IDS:** Necesarios para el Despliegue Headless (Fase 4)
+        // 3. VERCEL IDS: Necesarios para el Despliegue Headless (Fase 4).
         VERCEL_ORG_ID = 'team_4ZNz0EjGg89V5lhLtw89Ekdq' 
         VERCEL_PROJECT_ID = 'prj_ZRPTi5Hcrs8HSvs70jZEeVmfSRSr' 
     }
@@ -23,14 +23,14 @@ pipeline {
         stage('Checkout') {
             steps {
                 echo "Clonando el repositorio..."
+                // Jenkins se encarga del SCM automático aquí.
             }
         }
 
-        // --- Etapas de Construcción y Validación ---
+        // --- Etapas comunes para ambas ramas ---
 
         stage('Instalación de Dependencias') {
             steps {
-                // 'npm install' funciona gracias a la variable PATH definida arriba.
                 sh 'npm install'
             }
         }
@@ -45,36 +45,41 @@ pipeline {
         // --- Etapas de Calidad (Específicas de 'develop') ---
         
         stage('Análisis de Código Estático (SonarQube)') {
-            when { 
-                branch 'develop' 
-            }
+            // Eliminamos la cláusula 'when' para evitar el 'skipped due to when conditional'
             steps {
                 script {
-                    // El wrapper 'withSonarQubeEnv' inyecta la URL del servidor
-                    withSonarQubeEnv('SonarQube') { 
-                        sh """
-                            # Ejecuta el escáner usando el binario del tool instalado
-                            ${tool 'SonarQubeScanner'}/bin/sonar-scanner \
-                            -Dsonar.projectKey=${env.SONARQUBE_PROJECT_KEY} \
-                            -Dsonar.sources=.
-                        """
+                    // Verificamos la rama dentro del script
+                    if (env.BRANCH_NAME == 'develop') {
+                        // El wrapper 'withSonarQubeEnv' inyecta la URL del servidor
+                        withSonarQubeEnv('SonarQube') { 
+                            sh """
+                                ${tool 'SonarQubeScanner'}/bin/sonar-scanner \
+                                -Dsonar.projectKey=${env.SONARQUBE_PROJECT_KEY} \
+                                -Dsonar.sources=.
+                            """
+                        }
+                    } else {
+                        echo "Análisis de SonarQube omitido para la rama ${env.BRANCH_NAME}"
                     }
                 }
             }
         }
 
         stage('Quality Gate') {
-            when {
-                branch 'develop'
-            }
+            // Eliminamos la cláusula 'when'
             steps {
                 script {
-                    echo "Esperando el veredicto de SonarQube..."
-                    timeout(time: 5, unit: 'MINUTES') {
-                        def qg = waitForQualityGate()
-                        if (qg.status != 'OK') {
-                            error "Pipeline falló: Quality Gate no superado. Veredicto: ${qg.status}"
+                    // Verificamos la rama dentro del script
+                    if (env.BRANCH_NAME == 'develop') {
+                        echo "Esperando el veredicto de SonarQube..."
+                        timeout(time: 5, unit: 'MINUTES') {
+                            def qg = waitForQualityGate()
+                            if (qg.status != 'OK') {
+                                error "Pipeline falló: Quality Gate no superado. Veredicto: ${qg.status}"
+                            }
                         }
+                    } else {
+                        echo "Quality Gate omitido para la rama ${env.BRANCH_NAME}"
                     }
                 }
             }
@@ -88,10 +93,10 @@ pipeline {
             }
         }
         
-        // --- Finalización en Develop ---
+        // --- Finalización en Develop (Solo si pasa Quality Gate) ---
         
         stage('FIN DEL PROCESO (No debe desplegar)') {
-             // Solo se ejecuta en develop y SOLO si el build fue exitoso
+             // Solo se ejecuta en develop y si el build fue exitoso (cumple la estrategia de rama)
              when {
                 branch 'develop'
                 expression { return currentBuild.result == null || currentBuild.result == 'SUCCESS' }
@@ -111,10 +116,10 @@ pipeline {
             steps {
                 echo '🚀 Desplegando a Producción (Vercel) en la rama main.'
                 script {
-                    // Utiliza la credencial 'vercel-token'
+                    // Inyecta el Token de Autenticación mediante la Credencial de Jenkins
                     withCredentials([string(credentialsId: 'vercel-token', variable: 'VERCEL_TOKEN')]) {
                         sh """
-                            # Ejecuta el script de despliegue usando VERCEL_TOKEN y los IDs de entorno
+                            # Comando de despliegue Headless con inyección de IDs de entorno
                             vercel deploy --prod --token=\$VERCEL_TOKEN --yes \\
                                 -e VERCEL_ORG_ID=\$VERCEL_ORG_ID \\
                                 -e VERCEL_PROJECT_ID=\$VERCEL_PROJECT_ID

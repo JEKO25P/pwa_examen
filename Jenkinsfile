@@ -37,17 +37,21 @@ pipeline {
     }
 
     stage('SonarQube Analysis') {
-      steps {
-        withSonarQubeEnv('sonarqube') {
-          sh """
-            sonar-scanner \
-              -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-              -Dsonar.sources=src \
-              -Dsonar.host.url=${SONAR_HOST_URL}
-          """
-        }
+  steps {
+    withSonarQubeEnv('sonarqube') {
+      script {
+        def scannerHome = tool 'SonarScanner'   // 👈 el mismo nombre que pusiste en Jenkins
+        sh """
+          ${scannerHome}/bin/sonar-scanner \
+            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+            -Dsonar.sources=src \
+            -Dsonar.host.url=${SONAR_HOST_URL}
+        """
       }
     }
+  }
+}
+
 
     stage('Quality Gate') {
       steps {

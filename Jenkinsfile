@@ -36,8 +36,9 @@ pipeline {
             steps {
                 // Usar la herramienta de Node.js configurada en Jenkins
                 // Reemplaza 'NodeJS_18' con el nombre de tu configuración de herramienta.
-                tool 'NodeJS_18'
-                sh 'npm install'
+                withNodeJS(nodeJS: 'NodeJS_18') { 
+                  sh 'npm install'
+               }
             }
         }
 

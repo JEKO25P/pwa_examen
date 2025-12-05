@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import "./App.css";
 
 const POKE_API = "https://pokeapi.co/api/v2/pokemon?limit=30";
+
+// ❌ BUG INTENCIONAL: credencial sensible hardcodeada
+// SonarQube lo detectará como Hardcoded Credentials / weak password
+const POKE_API_TOKEN = "password12345";
 
 function App() {
   const [pokemons, setPokemons] = useState([]);
@@ -10,7 +13,13 @@ function App() {
   useEffect(() => {
     const loadPokemons = async () => {
       try {
-        const res = await fetch(POKE_API);
+        const res = await fetch(POKE_API, {
+          // ❌ Uso inseguro de la "credencial"
+          headers: {
+            Authorization: POKE_API_TOKEN,
+          },
+        });
+
         const data = await res.json();
 
         // data.results = [{ name, url }]

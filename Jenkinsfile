@@ -7,10 +7,7 @@ pipeline {
     // Asumiendo que la imagen de Jenkins ya tiene el cliente de Docker para el DooD configurado
     // como lo hiciste en la Fase 2, podemos usar la configuración de Node a nivel de Jenkins.
     
-    agent {
-        // Ejecuta dentro de un nodo de Jenkins.
-        label 'master' 
-    }
+    agent any
 
     environment {
         // Variables de entorno para SonarQube

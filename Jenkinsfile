@@ -44,7 +44,7 @@ pipeline {
         stage('Ejecución de Tests Unitarios') {
             steps {
                 // Asume que tienes un script 'test' en tu package.json
-                sh 'npx test'
+                sh 'npm run test'
             }
         }
 

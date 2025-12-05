@@ -1,104 +1,97 @@
 // Jenkinsfile Declarativo
 pipeline {
-    // Especifica que el pipeline se ejecutará dentro de un contenedor Docker.
-    // Necesitas una imagen con Node y las herramientas de construcción (como git y curl).
-    // Una imagen como 'node:18-bullseye' o 'node:18-alpine' debería funcionar.
-    // Si necesitas Docker-in-Docker (DooD), tu Jenkinsfile debe ser más complejo.
-    // Asumiendo que la imagen de Jenkins ya tiene el cliente de Docker para el DooD configurado
-    // como lo hiciste en la Fase 2, podemos usar la configuración de Node a nivel de Jenkins.
     
     agent any
 
     environment {
-        // Variables de entorno para SonarQube
-        SCANNER_HOME = tool 'SonarQubeScanner' // Asume que has configurado SonarQube Scanner en Jenkins
-        SONARQUBE_PROJECT_KEY = 'examen-poke-pwa' // Ajusta el nombre de tu proyecto
+        // Variables de entorno para Node.js, SonarQube y Vercel
 
-        VERCEL_ORG_ID = 'team_4ZNz0EjGg89V5lhLtw89Ekdq' // <-- REEMPLAZA ESTE VALOR
-        VERCEL_PROJECT_ID = 'prj_ZRPTi5Hcrs8HSvs70jZEeVmfSRSr'
+        // **1. INYECCIÓN DE PATH DE NODE.JS:** Resuelve el problema de "npm not found"
+        // Inyecta el directorio 'bin' del tool de Node.js en el PATH global del pipeline.
+        PATH = "${tool 'NodeJS_18'}/bin:$PATH" 
 
-        PATH = "${tool 'NodeJS_18'}/bin:$PATH"
+        // **2. SONARQUBE:** (Usaremos el tool directo en el paso sh)
+        SONARQUBE_PROJECT_KEY = 'examen-poke-pwa' 
 
+        // **3. VERCEL IDS:** Necesarios para el Despliegue Headless (Fase 4)
+        VERCEL_ORG_ID = 'team_4ZNz0EjGg89V5lhLtw89Ekdq' 
+        VERCEL_PROJECT_ID = 'prj_ZRPTi5Hcrs8HSvs70jZEeVmfSRSr' 
     }
     
     stages {
-        // Etapa que se ejecuta siempre
+        
         stage('Checkout') {
             steps {
                 echo "Clonando el repositorio..."
-                // El paso de SCM automático de Jenkins se encarga de esto.
             }
         }
 
-        // ---------------------------------------------
-        // Etapas comunes para ambas ramas (develop y main)
-        // ---------------------------------------------
+        // --- Etapas de Construcción y Validación ---
 
         stage('Instalación de Dependencias') {
             steps {
-                // Ya no necesitas 'script' ni 'tool' aquí. Solo el comando 'npm install'
+                // 'npm install' funciona gracias a la variable PATH definida arriba.
                 sh 'npm install'
             }
         }
 
         stage('Ejecución de Tests Unitarios') {
             steps {
-                // Asume que tienes un script 'test' en tu package.json
+                // Ejecuta el script "test" (que internamente usa npx vitest)
                 sh 'npm run test'
             }
         }
 
-        // ---------------------------------------------
-        // Etapas específicas de la rama 'develop'
-        // ---------------------------------------------
+        // --- Etapas de Calidad (Específicas de 'develop') ---
         
-       stage('Análisis de Código Estático (SonarQube)') {
-    when { 
-        branch 'develop' 
-    }
-    steps {
-        script {
-            // Asegúrate de que 'SonarQube' coincide con el nombre del servidor en Jenkins
-            withSonarQubeEnv('SonarQube') { 
-                sh """
-                    # Las variables de entorno ya están disponibles por el bloque withEnv
-                    ${tool 'SonarQubeScanner'}/bin/sonar-scanner \
-                    -Dsonar.projectKey=${env.SONARQUBE_PROJECT_KEY} \
-                    -Dsonar.sources=.
-                """
+        stage('Análisis de Código Estático (SonarQube)') {
+            when { 
+                branch 'develop' 
             }
-        }
-    }
-}
-
-stage('Quality Gate') {
-    when {
-        branch 'develop'
-    }
-    steps {
-        script {
-            echo "Esperando el veredicto de SonarQube..."
-            // La función waitForQualityGate() no requiere un wrapper conSonarQubeEnv
-            timeout(time: 5, unit: 'MINUTES') {
-                def qg = waitForQualityGate()
-                if (qg.status != 'OK') {
-                    error "Pipeline falló: Quality Gate no superado. Veredicto: ${qg.status}"
+            steps {
+                script {
+                    // El wrapper 'withSonarQubeEnv' inyecta la URL del servidor
+                    withSonarQubeEnv('SonarQube') { 
+                        sh """
+                            # Ejecuta el escáner usando el binario del tool instalado
+                            ${tool 'SonarQubeScanner'}/bin/sonar-scanner \
+                            -Dsonar.projectKey=${env.SONARQUBE_PROJECT_KEY} \
+                            -Dsonar.sources=.
+                        """
+                    }
                 }
             }
         }
-    }
-    post {
-        success {
-            echo '🎉 Quality Gate superado con éxito.'
+
+        stage('Quality Gate') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                script {
+                    echo "Esperando el veredicto de SonarQube..."
+                    timeout(time: 5, unit: 'MINUTES') {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            error "Pipeline falló: Quality Gate no superado. Veredicto: ${qg.status}"
+                        }
+                    }
+                }
+            }
+            post {
+                success {
+                    echo '🎉 Quality Gate superado con éxito.'
+                }
+                failure {
+                    echo '❌ Quality Gate falló.'
+                }
+            }
         }
-        failure {
-            echo '❌ Quality Gate falló.'
-        }
-    }
-}
         
-        // El proceso en 'develop' debe terminar aquí si pasa el Quality Gate
+        // --- Finalización en Develop ---
+        
         stage('FIN DEL PROCESO (No debe desplegar)') {
+             // Solo se ejecuta en develop y SOLO si el build fue exitoso
              when {
                 branch 'develop'
                 expression { return currentBuild.result == null || currentBuild.result == 'SUCCESS' }
@@ -108,44 +101,30 @@ stage('Quality Gate') {
             }
         }
 
-        // ---------------------------------------------
-        // Etapas específicas de la rama 'main'
-        // ---------------------------------------------
+        // --- Despliegue a Producción (Específico de 'main') ---
         
         stage('Despliegue a Producción') {
+            // Se ejecuta SOLO en la rama main
             when { 
                 branch 'main' 
             }
             steps {
-                echo '🚀 Desplegando a Producción (Vercel/Render) en la rama main.'
+                echo '🚀 Desplegando a Producción (Vercel) en la rama main.'
                 script {
-                    // **Restricción:** El despliegue debe ejecutarse mediante CLI.
-                    // **Requisito:** Debe inyectar el Token de Autenticación de la plataforma.
-                    
-                    // Usaremos withCredentials para obtener el token de Vercel/Render.
-                    // Asume que has creado una Credencial de Jenkins tipo 'Secret Text' 
-                    // con ID 'vercel-token' y el valor de tu token.
+                    // Utiliza la credencial 'vercel-token'
                     withCredentials([string(credentialsId: 'vercel-token', variable: 'VERCEL_TOKEN')]) {
-                        // Despliegue usando el snippet proporcionado en las instrucciones:
                         sh """
-                            # Requisito de inyección de IDs: 
-                            # Asume que las variables de entorno se obtienen de Jenkins/global.
-                            # Debes configurar estas variables como Global Environment Variables 
-                            # o en el entorno del pipeline en Jenkins.
-                            # VERCEL_ORG_ID y VERCEL_PROJECT_ID
-                            
+                            # Ejecuta el script de despliegue usando VERCEL_TOKEN y los IDs de entorno
                             vercel deploy --prod --token=\$VERCEL_TOKEN --yes \\
                                 -e VERCEL_ORG_ID=\$VERCEL_ORG_ID \\
                                 -e VERCEL_PROJECT_ID=\$VERCEL_PROJECT_ID
                         """
-                        // **Nota:** El script final de tu plataforma (Vercel/Render) debe
-                        // generar una URL de producción nueva, como se pide en la Fase 5.
                     }
                 }
             }
             post {
                 success {
-                    echo "✅ Despliegue a Producción Finalizado."
+                    echo "✅ Despliegue a Producción Finalizado. URL de producción generada."
                 }
                 failure {
                     error "❌ Fallo en el Despliegue a Producción."

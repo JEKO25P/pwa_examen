@@ -13,6 +13,8 @@ pipeline {
         // 2. SONARQUBE: Clave del proyecto.
         SONARQUBE_PROJECT_KEY = 'examen-poke-pwa' 
 
+        BRANCH_NAME = params.BRANCH_TO_BUILD
+
         // 3. VERCEL IDS: Necesarios para el Despliegue Headless (Fase 4).
         VERCEL_ORG_ID = 'team_4ZNz0EjGg89V5lhLtw89Ekdq' 
         VERCEL_PROJECT_ID = 'prj_ZRPTi5Hcrs8HSvs70jZEeVmfSRSr' 

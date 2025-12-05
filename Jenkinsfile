@@ -57,15 +57,16 @@ pipeline {
                 branch 'develop' 
             }
             steps {
-                script {
-                    // 1. Ejecutar el análisis
-                    withSonarQubeEnv('SonarQube') { // 'SonarQube' es el nombre del servidor configurado en Jenkins
-                        sh "${SCANNER_HOME}/bin/sonar-scanner \
-                            -Dsonar.projectKey=${SONARQUBE_PROJECT_KEY} \
-                            -Dsonar.sources=. \
-                            -Dsonar.host.url=${SONARQUBE_URL}" // SonarQube URL se inyecta por withSonarQubeEnv
-                    }
-                }
+                script { // Usamos script para forzar la ejecución secuencial
+            // 1. Ejecutar el análisis
+            withSonarQubeEnv('SonarQube') { // 'SonarQube' es el nombre del servidor configurado en Jenkins
+                sh """
+                    ${tool 'SonarQubeScanner'}/bin/sonar-scanner \
+                    -Dsonar.projectKey=${SONARQUBE_PROJECT_KEY} \
+                    -Dsonar.sources=.
+                """
+            }
+        }
             }
         }
 
@@ -74,16 +75,16 @@ pipeline {
                 branch 'develop'
             }
             steps {
-                script {
-                    echo "Esperando el veredicto de SonarQube..."
-                    // 2. Esperar y fallar si no pasa
-                    timeout(time: 5, unit: 'MINUTES') {
-                        def qg = waitForQualityGate()
-                        if (qg.status != 'OK') {
-                            error "Pipeline falló: Quality Gate no superado. Veredicto: ${qg.status}"
-                        }
-                    }
+               script {
+            echo "Esperando el veredicto de SonarQube..."
+            // 2. Esperar y fallar si no pasa
+            timeout(time: 5, unit: 'MINUTES') {
+                def qg = waitForQualityGate()
+                if (qg.status != 'OK') {
+                    error "Pipeline falló: Quality Gate no superado. Veredicto: ${qg.status}"
                 }
+            }
+        }
             }
             post {
                 success {

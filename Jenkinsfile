@@ -34,11 +34,16 @@ pipeline {
 
         stage('Instalación de Dependencias') {
             steps {
-                // Usar la herramienta de Node.js configurada en Jenkins
-                // Reemplaza 'NodeJS_18' con el nombre de tu configuración de herramienta.
-                withNodeJS(nodeJS: 'NodeJS_18') { 
-                  sh 'npm install'
-               }
+                script {
+            // Obtiene la ubicación de la herramienta de Node.js instalada (NodeJS_18)
+            def node_home = tool 'NodeJS_18'
+            
+            // Ejecuta npm install, asegurando que los binarios de Node estén en el PATH
+            sh """
+                export PATH="${node_home}/bin:\$PATH"
+                npm install
+            """
+            }
             }
         }
 

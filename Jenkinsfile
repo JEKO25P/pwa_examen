@@ -11,7 +11,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git url: 'https://github.com/JEKO25P/pwa_examen.git', branch: 'main'
+                git url: 'https://github.com/JEKO25P/pwa_examen.git', branch: 'develop'
             }
         }
 

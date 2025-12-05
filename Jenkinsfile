@@ -1,13 +1,15 @@
 pipeline {
   agent {
     docker {
-      image 'node:18-alpine'
+      // 1. CAMBIO: Usar Node 20 para resolver EBADENGINE
+      image 'node:20-alpine'
       args '-u root:root'
     }
   }
 
   environment {
-    SONAR_HOST_URL    = 'http://sonarqube:9000'
+    // 2. CAMBIO: Usar host.docker.internal para resolver problemas de red entre contenedores
+    SONAR_HOST_URL    = 'http://host.docker.internal:9000' 
     SONAR_PROJECT_KEY = 'poke-pwa'
   }
 
@@ -25,7 +27,7 @@ pipeline {
       }
     }
 
-    // 🔹 Nuevo stage: instalar Java dentro del contenedor node:18-alpine
+    // 🔹 Este stage es necesario ya que el escáner de SonarQube requiere Java.
     stage('Install Java for Sonar') {
       steps {
         sh '''
@@ -53,7 +55,7 @@ pipeline {
       steps {
         withSonarQubeEnv('sonarqube') {
           script {
-            def scannerHome = tool 'SonarScanner'   // mismo nombre que en Global Tool Configuration
+            def scannerHome = tool 'SonarScanner'
             sh """
               ${scannerHome}/bin/sonar-scanner \
                 -Dsonar.projectKey=${SONAR_PROJECT_KEY} \

@@ -1,10 +1,11 @@
 pipeline {
   agent any
 
-  tools {
-    nodejs 'node18'            // Nombre configurado en Global Tool Configuration
-    sonarScanner 'SonarScanner'
-  }
+tools {
+  nodejs 'node18'
+  hudson.plugins.sonar.SonarRunnerInstallation 'SonarScanner'
+}
+
 
   environment {
     // Token de Vercel guardado como credencial "vercel-token"
